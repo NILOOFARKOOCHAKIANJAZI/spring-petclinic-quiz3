@@ -17,37 +17,32 @@ pipeline {
             }
         }
 
-        stage('Build + Unit Tests') {
+        stage('Build + Tests + JaCoCo Report') {
             steps {
                 script {
                     if (isUnix()) {
                         sh 'chmod +x mvnw || true'
-                        sh './mvnw -B clean test'
+                        // Single run: tests + jacoco report
+                        sh './mvnw -B clean jacoco:prepare-agent test jacoco:report'
                     } else {
-                        bat 'mvnw.cmd -B clean test'
+                        bat 'mvnw.cmd -B clean jacoco:prepare-agent test jacoco:report'
                     }
                 }
             }
             post {
                 always {
-                    // Don’t fail the whole build if reports are missing
+                    // Test results in Jenkins
                     junit testResults: 'target/surefire-reports/*.xml', allowEmptyResults: true
-                }
-            }
-        }
 
-        stage('JaCoCo Code Coverage') {
-            steps {
-                script {
-                    if (isUnix()) {
-                        sh './mvnw -B jacoco:prepare-agent test jacoco:report'
-                    } else {
-                        bat 'mvnw.cmd -B jacoco:prepare-agent test jacoco:report'
-                    }
-                }
-            }
-            post {
-                always {
+                    // Publish JaCoCo coverage in Jenkins (requires "JaCoCo" plugin)
+                    jacoco(
+                        execPattern: 'target/jacoco.exec',
+                        classPattern: 'target/classes',
+                        sourcePattern: 'src/main/java',
+                        exclusionPattern: '**/target/**'
+                    )
+
+                    // Keep HTML report as build artifact (so you can open index.html)
                     archiveArtifacts artifacts: 'target/site/jacoco/**', allowEmptyArchive: true
                 }
             }
